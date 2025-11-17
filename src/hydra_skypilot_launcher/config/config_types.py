@@ -88,6 +88,7 @@ class TaskConfig:
     """Task configuration dataclass."""
 
     name: str
+    resources: ResourcesConfig
     workdir: Path | None = None
     file_mounts: list[FileMount] = field(default_factory=list)
     env_vars: dict[str, str] = field(default_factory=dict)
@@ -98,6 +99,7 @@ class TaskConfig:
         """Convert to SkyPilot Task object."""
         return Task(
             name=self.name,
+            resources=self.resources.to_sky_resources(),
             workdir=self.workdir.as_posix() if self.workdir else None,
             storage_mounts={
                 fm.destination.as_posix(): fm.to_sky_storage()
