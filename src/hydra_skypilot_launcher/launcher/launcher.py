@@ -180,7 +180,10 @@ class SkyPilotLauncher(Launcher):
             skypilot_task = task_config.to_sky_task()
 
             # Launch the job using SkyPilot
+            logger.info(f"Launching job '{job_name}' with SkyPilot...")  # noqa: G004
+            logger.info(f"Run command: {' '.join(run_command)}")  # noqa: G004
             launch(skypilot_task)
+            logger.info(f"Job '{job_name}' launched successfully.")  # noqa: G004
 
             # Get the sweeper configuration
             sweep_config = self.hydra_context.config_loader.load_sweep_config(
