@@ -8,8 +8,12 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "hydra-core==1.4.0.dev1",
     "skypilot[gcp]>=0.10.5",
 ]
+
+[tool.uv]
+prerelease = "allow"
 
 [build-system]
 requires = ["uv_build>=0.9.9,<0.10.0"]
