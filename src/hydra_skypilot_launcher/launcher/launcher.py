@@ -24,14 +24,15 @@
 """Launcher Class."""
 
 import sys
-from collections.abc import Sequence
 from logging import getLogger
 from pathlib import Path
+from typing import Sequence
 
 from hydra.core.utils import JobReturn, JobStatus
 from hydra.plugins.launcher import Launcher
 from hydra.types import HydraContext, TaskFunction
 from omegaconf import DictConfig, OmegaConf
+from sky.jobs import launch
 
 from hydra_skypilot_launcher.config.config_types import (
     FileMount,
@@ -56,9 +57,9 @@ class SkyPilotLauncher(Launcher):
     ) -> None:
         """Initialize the SkyPilot Launcher."""
         self.resources: ResourcesConfig = OmegaConf.to_object(resources)
-        self.file_mounts: list[FileMount] = file_mounts or []
-        self.env_vars: dict[str, str] = env_vars or {}
-        self.setup_commands = setup_commands
+        self.file_mounts: list[FileMount] = OmegaConf.to_object(file_mounts) or []
+        self.env_vars: dict[str, str] = OmegaConf.to_object(env_vars) or {}
+        self.setup_commands: list[str] | None = OmegaConf.to_object(setup_commands)
 
     def setup(
         self,
@@ -71,6 +72,90 @@ class SkyPilotLauncher(Launcher):
         self.config = config
         self.hydra_context = hydra_context
 
+    def _get_job_name(self, initial_job_idx: int, idx: int) -> str:
+        """Get the job name based on the task function name and job index."""
+        try:
+            job_name: str = (
+                f"{self.task_function.func.__name__}_{initial_job_idx + idx}"  # type: ignore[attr-defined]
+            )
+        except AttributeError:
+            job_name = f"{self.task_function.__name__}_{initial_job_idx + idx}"
+        return job_name
+
+    def _get_job_script(self, job_override: Sequence[str]) -> Path:
+        """Get the job script path."""
+        job_script: Path = Path(sys.argv[0])
+        if any("+launch.script=" in arg for arg in job_override):
+            job_script = Path(
+                next(arg for arg in job_override if "+launch.script=" in arg).split(
+                    "=",
+                    1,
+                )[1],
+            )
+            job_override.pop(  # type: ignore[unresolved-attribute]
+                job_override.index(
+                    next(arg for arg in job_override if "+launch.script=" in arg),
+                ),
+            )
+        if job_script.suffix == "" and job_script.resolve().parent.name == "bin":
+            job_script = Path(job_script.name)
+        return job_script
+
+    def _format_overrides(self, job_override: Sequence[str]) -> list[str]:
+        """Format the overrides for command line usage."""
+        # Reformat string overrides to handle spaces in the values
+        overrides_list: list[str] = []
+        launch_command_overrides: list[str] = []
+        for override in job_override:
+            if (
+                "\\" not in override
+                and "$" not in override
+                and "+launch" not in override
+            ):
+                overrides_list.append(override)
+                continue
+
+            override_key, override_value = override.split("=", 1)
+            override_value = override_value.replace("\\", "")
+
+            if "(" in override_value:
+                override_value = override_value.replace("(", "\\(")
+            if ")" in override_value:
+                override_value = override_value.replace(")", "\\)")
+            if "{" in override_value:
+                override_value = override_value.replace("{", "\\{")
+            if "}" in override_value:
+                override_value = override_value.replace("}", "\\}")
+            if "$" in override_value:
+                override_value = override_value.replace("$", "\\\\\\\\$")
+
+            # Handle launch command overrides
+            if "+launch" in override_key:
+                override_key = override_key.replace("+launch.", "").replace(
+                    "+launch/",
+                    "",
+                )
+                launch_command_overrides.append(
+                    f'{override_key}=\\"{override_value}\\"',
+                )
+                continue
+            overrides_list.append(f'{override_key}=\\"{override_value}\\"')
+
+        if launch_command_overrides:
+            overrides_list.append("--")
+            overrides_list.extend(launch_command_overrides)
+        return overrides_list
+
+    def _get_run_command(self, job_override: Sequence[str]) -> list[str]:
+        """Get the run command for the job."""
+        job_script: Path = self._get_job_script(job_override)
+        overrides_list: list[str] = self._format_overrides(job_override)
+        overrides_list = [f"\t{override} \\" for override in overrides_list]
+        job_script_str = f"uv run {job_script.as_posix()}"
+        job_script_str += " \\" if overrides_list else ""
+        run_command: list[str] = [job_script_str, *overrides_list]
+        return run_command
+
     def launch(
         self,
         job_overrides: Sequence[Sequence[str]],
@@ -79,9 +164,8 @@ class SkyPilotLauncher(Launcher):
         """Launch the jobs with the given overrides."""
         results: list[JobReturn] = []
         for idx, job_override in enumerate(job_overrides):
-            job_idx = initial_job_idx + idx
-            job_name: str = f"job_{job_idx}"
-            job_script: str = " ".join(sys.argv)
+            job_name: str = self._get_job_name(initial_job_idx, idx)
+            run_command: list[str] = self._get_run_command(job_override)
             work_dir: Path = Path.cwd()
 
             task_config: TaskConfig = TaskConfig(
@@ -91,9 +175,12 @@ class SkyPilotLauncher(Launcher):
                 file_mounts=self.file_mounts,
                 env_vars=self.env_vars,
                 setup_commands=self.setup_commands,
-                run_commands=job_script,
+                run_commands=run_command,
             )
-            skypilot_task = task_config.to_sky_task()  # noqa: F841
+            skypilot_task = task_config.to_sky_task()
+
+            # Launch the job using SkyPilot
+            launch(skypilot_task)
 
             # Get the sweeper configuration
             sweep_config = self.hydra_context.config_loader.load_sweep_config(

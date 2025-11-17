@@ -53,7 +53,7 @@ class FileMount:
         storage = Storage(
             name=self.name,
             source=self.source.as_posix(),
-            stores=list(self.store) if self.store else None,  # type: ignore[invalid-argument-type]
+            stores=[self.store] if self.store else None,  # type: ignore[invalid-argument-type]
             mode=self.mode,
             persistent=self.persistent,
         )
