@@ -1,0 +1,10 @@
+# UV environment
+.venv
+uv.lock
+.python-version
+
+# Python cache
+*__pycache__*
+
+# Apple Finder files
+.DS_Store
