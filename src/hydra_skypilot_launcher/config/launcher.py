@@ -23,11 +23,20 @@
 # limitations under the License.
 """Configuration for the Hydra SkyPilot Launcher."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from hydra_skypilot_launcher.config.config_types import (
+    FileMount,
+    ResourcesConfig,
+)
 
 
 @dataclass
-class HPCSubmissionConfig:
+class SkyPilotLauncherConfig:
     """Configuration for HPC submission launcher."""
 
+    resources: ResourcesConfig
     _target_: str = "hydra_skypilot_launcher.launcher.SkyPilotLauncher"
+    file_mounts: list[FileMount] = field(default_factory=list)
+    env_vars: dict[str, str] = field(default_factory=dict)
+    setup_commands: list[str] | None = None
