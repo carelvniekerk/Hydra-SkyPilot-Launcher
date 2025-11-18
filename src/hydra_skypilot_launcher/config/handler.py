@@ -69,9 +69,14 @@ def handle_output_dir_and_save_configs(
             hydra_output = Path(hydra_config.hydra.runtime.output_dir) / Path(
                 hydra_config.hydra.output_subdir,
             )
+
+            # Redact secrets before saving configs
+            OmegaConf.set_readonly(hydra_config, value=False)
             for key in hydra_config.hydra.launcher.secrets:
                 hydra_config.hydra.launcher.secrets[key] = "<redacted>"
+            OmegaConf.set_readonly(hydra_config, value=True)
             _save_config(hydra_config, "config.yaml", hydra_output)
+
             cfg_instance: HydraConf = HydraConfig.instance().cfg  # type: ignore[invalid-assignment]
             for key in cfg_instance.launcher.secrets:
                 cfg_instance.launcher.secrets[key] = "<redacted>"
