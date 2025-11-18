@@ -92,6 +92,7 @@ class TaskConfig:
     workdir: Path | None = None
     file_mounts: list[FileMount] = field(default_factory=list)
     env_vars: dict[str, str] = field(default_factory=dict)
+    secrets: dict[str, str] = field(default_factory=dict)
     setup_commands: str | list[str] | None = None
     run_commands: str | list[str] | None = None
 
@@ -106,6 +107,7 @@ class TaskConfig:
                 for fm in self.file_mounts
             },
             envs=self.env_vars,
+            secrets=self.secrets,
             setup=self.setup_commands,
             run=self.run_commands,
         )
