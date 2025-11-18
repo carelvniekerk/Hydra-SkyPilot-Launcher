@@ -39,4 +39,5 @@ class SkyPilotLauncherConfig:
     _target_: str = "hydra_skypilot_launcher.launcher.SkyPilotLauncher"
     file_mounts: list[FileMount] = field(default_factory=list)
     env_vars: dict[str, str] = field(default_factory=dict)
+    secrets: dict[str, str] = field(default_factory=dict)
     setup_commands: list[str] | None = None

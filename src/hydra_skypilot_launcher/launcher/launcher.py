@@ -53,12 +53,14 @@ class SkyPilotLauncher(Launcher):
         resources: ResourcesConfig,
         file_mounts: list[FileMount] | None = None,
         env_vars: dict[str, str] | None = None,
+        secrets: dict[str, str] | None = None,
         setup_commands: list[str] | None = None,
     ) -> None:
         """Initialize the SkyPilot Launcher."""
         self.resources: ResourcesConfig = OmegaConf.to_object(resources)
         self.file_mounts: list[FileMount] = OmegaConf.to_object(file_mounts) or []
         self.env_vars: dict[str, str] = OmegaConf.to_object(env_vars) or {}
+        self.secrets: dict[str, str] = OmegaConf.to_object(secrets) or {}
         self.setup_commands: list[str] | None = OmegaConf.to_object(setup_commands)
 
     def setup(
