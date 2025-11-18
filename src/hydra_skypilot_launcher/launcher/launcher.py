@@ -28,10 +28,10 @@ from logging import getLogger
 from pathlib import Path
 from typing import Sequence
 
-from hydra.core.utils import JobReturn, JobStatus
+from hydra.core.utils import HydraConfig, JobReturn, JobStatus
 from hydra.plugins.launcher import Launcher
 from hydra.types import HydraContext, TaskFunction
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from sky.jobs import launch
 
 from hydra_skypilot_launcher.config.config_types import (
@@ -39,6 +39,7 @@ from hydra_skypilot_launcher.config.config_types import (
     ResourcesConfig,
     TaskConfig,
 )
+from hydra_skypilot_launcher.config.handler import handle_output_dir_and_save_configs
 
 __all__ = ["SkyPilotLauncher"]
 
@@ -153,6 +154,7 @@ class SkyPilotLauncher(Launcher):
         job_script: Path = self._get_job_script(job_override)
         overrides_list: list[str] = self._format_overrides(job_override)
         overrides_list = [f"\t{override} \\" for override in overrides_list]
+        overrides_list[-1] = overrides_list[-1].rstrip(" \\")
         job_script_str = f"uv run {job_script.as_posix()}"
         job_script_str += " \\" if overrides_list else ""
         run_command: list[str] = [job_script_str, *overrides_list]
@@ -180,17 +182,28 @@ class SkyPilotLauncher(Launcher):
                 run_commands=run_command,
             )
             skypilot_task = task_config.to_sky_task()
+            sky_config_dict = skypilot_task.to_yaml_config(use_user_specified_yaml=True)
+            sky_config: DictConfig = OmegaConf.create(sky_config_dict)
 
             # Launch the job using SkyPilot
             logger.info(f"Launching job '{job_name}' with SkyPilot...")  # noqa: G004
             logger.info(f"Run command: {' '.join(run_command)}")  # noqa: G004
-            launch(skypilot_task)
+            request_id = launch(skypilot_task)
             logger.info(f"Job '{job_name}' launched successfully.")  # noqa: G004
 
             # Get the sweeper configuration
             sweep_config = self.hydra_context.config_loader.load_sweep_config(
                 self.config,
                 list(job_override),
+            )
+            with open_dict(sweep_config):
+                # Assign HPC job id to the sweep configuration
+                sweep_config.hydra.job.id = request_id
+            HydraConfig.instance().set_config(sweep_config)
+
+            handle_output_dir_and_save_configs(
+                hydra_config=sweep_config,
+                sky_config=sky_config,
             )
 
             results.append(
