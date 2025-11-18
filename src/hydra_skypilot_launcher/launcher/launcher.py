@@ -154,7 +154,8 @@ class SkyPilotLauncher(Launcher):
         job_script: Path = self._get_job_script(job_override)
         overrides_list: list[str] = self._format_overrides(job_override)
         overrides_list = [f"\t{override} \\" for override in overrides_list]
-        overrides_list[-1] = overrides_list[-1].rstrip(" \\")
+        if overrides_list:
+            overrides_list[-1] = overrides_list[-1].rstrip(" \\")
         job_script_str = f"uv run {job_script.as_posix()}"
         job_script_str += " \\" if overrides_list else ""
         run_command: list[str] = [job_script_str, *overrides_list]
