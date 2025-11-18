@@ -71,15 +71,16 @@ def handle_output_dir_and_save_configs(
             )
 
             # Redact secrets before saving configs
+            cfg_instance: HydraConf = HydraConfig.instance().cfg  # type: ignore[invalid-assignment]
             OmegaConf.set_readonly(hydra_config, value=False)
+            OmegaConf.set_readonly(cfg_instance, value=False)  # type: ignore[invalid-argument-type]
             for key in hydra_config.hydra.launcher.secrets:
                 hydra_config.hydra.launcher.secrets[key] = "<redacted>"
-            OmegaConf.set_readonly(hydra_config, value=True)
-            _save_config(hydra_config, "config.yaml", hydra_output)
-
-            cfg_instance: HydraConf = HydraConfig.instance().cfg  # type: ignore[invalid-assignment]
-            for key in cfg_instance.launcher.secrets:
                 cfg_instance.launcher.secrets[key] = "<redacted>"
+            OmegaConf.set_readonly(hydra_config, value=True)
+            OmegaConf.set_readonly(cfg_instance, value=True)  # type: ignore[invalid-argument-type]
+
+            _save_config(hydra_config, "config.yaml", hydra_output)
             _save_config(HydraConfig.instance().cfg, "hydra.yaml", hydra_output)  # type: ignore  # noqa: PGH003
             _save_config(
                 cfg=hydra_config.hydra.overrides.task,
