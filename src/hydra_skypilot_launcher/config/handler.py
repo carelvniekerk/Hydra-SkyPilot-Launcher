@@ -19,7 +19,7 @@
 
 from pathlib import Path
 
-from hydra.core.hydra_config import HydraConfig
+from hydra.core.hydra_config import HydraConf, HydraConfig
 from hydra.core.utils import _save_config
 from omegaconf import DictConfig, OmegaConf, open_dict
 
@@ -69,7 +69,12 @@ def handle_output_dir_and_save_configs(
             hydra_output = Path(hydra_config.hydra.runtime.output_dir) / Path(
                 hydra_config.hydra.output_subdir,
             )
+            for key in hydra_config.hydra.launcher.secrets:
+                hydra_config.hydra.launcher.secrets[key] = "<redacted>"
             _save_config(hydra_config, "config.yaml", hydra_output)
+            cfg_instance: HydraConf = HydraConfig.instance().cfg  # type: ignore[invalid-assignment]
+            for key in cfg_instance.launcher.secrets:
+                cfg_instance.launcher.secrets[key] = "<redacted>"
             _save_config(HydraConfig.instance().cfg, "hydra.yaml", hydra_output)  # type: ignore  # noqa: PGH003
             _save_config(
                 cfg=hydra_config.hydra.overrides.task,
