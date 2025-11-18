@@ -178,6 +178,7 @@ class SkyPilotLauncher(Launcher):
                 workdir=work_dir,
                 file_mounts=self.file_mounts,
                 env_vars=self.env_vars,
+                secrets=self.secrets,
                 setup_commands=self.setup_commands,
                 run_commands=run_command,
             )
