@@ -79,10 +79,10 @@ class SkyPilotLauncher(Launcher):
         """Get the job name based on the task function name and job index."""
         try:
             job_name: str = (
-                f"{self.task_function.func.__name__}_{initial_job_idx + idx}"  # type: ignore[attr-defined]
+                f"{self.task_function.func.__name__}_{initial_job_idx + idx}"  # ty:ignore[unresolved-attribute]
             )
         except AttributeError:
-            job_name = f"{self.task_function.__name__}_{initial_job_idx + idx}"
+            job_name = f"{self.task_function.__name__}_{initial_job_idx + idx}"  # ty:ignore[unresolved-attribute]
         return job_name
 
     def _get_job_script(self, job_override: Sequence[str]) -> Path:
