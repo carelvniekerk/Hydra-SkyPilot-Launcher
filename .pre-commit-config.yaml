@@ -1,7 +1,7 @@
 repos:
     # Ruff - Fast Python linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.14.13
+      rev: v0.15.7
       hooks:
           - id: ruff-check
             args: [--fix, --exit-non-zero-on-fix]
@@ -10,7 +10,7 @@ repos:
     # UV - Python dependency management tool
     - repo: https://github.com/astral-sh/uv-pre-commit
       # uv version.
-      rev: 0.9.26
+      rev: 0.11.1
       hooks:
           - id: uv-lock
 
@@ -30,7 +30,7 @@ repos:
 
     # Python-specific checks
     - repo: https://github.com/pycqa/bandit
-      rev: 1.9.3
+      rev: 1.9.4
       hooks:
           - id: bandit
             exclude: ^tests/

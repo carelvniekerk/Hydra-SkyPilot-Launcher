@@ -58,11 +58,11 @@ class SkyPilotLauncher(Launcher):
         setup_commands: list[str] | None = None,
     ) -> None:
         """Initialize the SkyPilot Launcher."""
-        self.resources: ResourcesConfig = OmegaConf.to_object(resources)
-        self.file_mounts: list[FileMount] = OmegaConf.to_object(file_mounts) or []
-        self.env_vars: dict[str, str] = OmegaConf.to_object(env_vars) or {}
-        self.secrets: dict[str, str] = OmegaConf.to_object(secrets) or {}
-        self.setup_commands: list[str] | None = OmegaConf.to_object(setup_commands)
+        self.resources: ResourcesConfig = OmegaConf.to_object(resources)  # ty:ignore[invalid-assignment]
+        self.file_mounts: list[FileMount] = OmegaConf.to_object(file_mounts) or []  # ty:ignore[invalid-assignment]
+        self.env_vars: dict[str, str] = OmegaConf.to_object(env_vars) or {}  # ty:ignore[invalid-assignment]
+        self.secrets: dict[str, str] = OmegaConf.to_object(secrets) or {}  # ty:ignore[invalid-assignment]
+        self.setup_commands: list[str] | None = OmegaConf.to_object(setup_commands)  # ty:ignore[invalid-assignment]
 
     def setup(
         self,
@@ -95,7 +95,7 @@ class SkyPilotLauncher(Launcher):
                     1,
                 )[1],
             )
-            job_override.pop(  # type: ignore[unresolved-attribute]
+            job_override.pop(  # ty:ignore[unresolved-attribute]
                 job_override.index(
                     next(arg for arg in job_override if "+launch.script=" in arg),
                 ),
