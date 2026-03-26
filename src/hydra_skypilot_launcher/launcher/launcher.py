@@ -184,7 +184,7 @@ class SkyPilotLauncher(Launcher):
                 run_commands=run_command,
             )
             skypilot_task = task_config.to_sky_task()
-            sky_config_dict = skypilot_task.to_yaml_config()
+            sky_config_dict = skypilot_task.to_yaml_config(use_user_specified_yaml=True)
             sky_config: DictConfig = OmegaConf.create(sky_config_dict)
 
             # Launch the job using SkyPilot
