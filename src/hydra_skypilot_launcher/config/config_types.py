@@ -74,7 +74,7 @@ class ResourcesConfig:
     def to_sky_resources(self) -> Resources:
         """Convert to SkyPilot Resources object."""
         return Resources(
-            infra=self.infrastructure,
+            cloud=self.infrastructure,  # ty:ignore[invalid-argument-type]
             cpus=self.cpus,
             memory=self.memory,
             accelerators=self.accelerators,
@@ -98,16 +98,25 @@ class TaskConfig:
 
     def to_sky_task(self) -> Task:
         """Convert to SkyPilot Task object."""
-        return Task(
+        self.setup_commands = (
+            "\n".join(self.setup_commands)
+            if isinstance(self.setup_commands, list)
+            else self.setup_commands
+        )
+        self.run_commands = (
+            "\n".join(self.run_commands)
+            if isinstance(self.run_commands, list)
+            else self.run_commands
+        )
+        self.env_vars.update(self.secrets)
+        task = Task(
             name=self.name,
-            resources=self.resources.to_sky_resources(),
             workdir=self.workdir.as_posix() if self.workdir else None,
-            storage_mounts={
-                fm.destination.as_posix(): fm.to_sky_storage()
-                for fm in self.file_mounts
-            },
             envs=self.env_vars,
-            secrets=self.secrets,
             setup=self.setup_commands,
             run=self.run_commands,
         )
+        task = task.set_resources(self.resources.to_sky_resources()).set_storage_mounts(
+            {fm.destination.as_posix(): fm.to_sky_storage() for fm in self.file_mounts},
+        )
+        return task
