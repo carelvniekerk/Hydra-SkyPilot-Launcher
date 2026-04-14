@@ -3,10 +3,10 @@ name = "hydra_skypilot_launcher"
 version = "0.1.0"
 description = "Hydra launcher to launch multirun jobs as SkyPilot jobs."
 readme = "README.md"
-authors = [{ name = "Carel van Niekerk", email = "vniekerk.carel@gmail.com" }]
+authors = [{ name = "Carel van Niekerk", email = "code@carelvniekerk.com" }]
 requires-python = ">=3.12"
 dependencies = ["hydra-core>=1.3.0", "skypilot[gcp]>=0.12"]
 
 [build-system]
-requires = ["uv_build>=0.11.1,<0.12"]
+requires = ["uv_build>=0.11.6,<0.12.0"]
 build-backend = "uv_build"
