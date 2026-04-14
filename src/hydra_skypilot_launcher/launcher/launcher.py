@@ -2,26 +2,31 @@
 # --------------------------------------------------------------------------------
 # Project: Hydra SkyPilot Launcher
 # Author: Carel van Niekerk
-# Year: 2025
-# Group: Dialogue Systems and Machine Learning Group
-# Institution: Heinrich Heine University Düsseldorf
+# Year: 2026
 # --------------------------------------------------------------------------------
 #
 # This code was generated with the help of AI writing assistants
-# including GitHub Copilot, ChatGPT, Bing Chat.
+# including GitHub Copilot, ChatGPT Codex, Claude Code, Gemini.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http: //www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Launcher Class."""
+"""SkyPilotLauncher — Hydra launcher plugin backed by SkyPilot managed jobs.
+
+Each call to :meth:`SkyPilotLauncher.launch` iterates over the provided
+Hydra sweep overrides, constructs a SkyPilot ``Task`` from the launcher
+config, submits it via ``sky.jobs.launch``, and records a ``JobReturn``
+for Hydra's sweeper bookkeeping.  The per-job output directory and all
+relevant config YAML files are written to disk before the function returns.
+"""
 
 import sys
 from logging import getLogger
@@ -47,7 +52,13 @@ logger = getLogger("HydraSkyPilotLauncher")
 
 
 class SkyPilotLauncher(Launcher):
-    """SkyPilot Launcher for Hydra."""
+    """Hydra ``Launcher`` plugin that submits sweep jobs via SkyPilot.
+
+    Instantiated by Hydra from
+    :class:`~hydra_skypilot_launcher.config.launcher.SkyPilotLauncherConfig`.
+    Each sweep job becomes a SkyPilot managed job that runs on the requested
+    cloud infrastructure with automatic provisioning and fault tolerance.
+    """
 
     def __init__(
         self,
@@ -57,7 +68,20 @@ class SkyPilotLauncher(Launcher):
         secrets: dict[str, str] | None = None,
         setup_commands: list[str] | None = None,
     ) -> None:
-        """Initialize the SkyPilot Launcher."""
+        """Store launcher config, converting OmegaConf nodes to plain Python objects.
+
+        Args:
+            resources: Cloud resource requirements for every submitted job.
+            file_mounts: Cloud storage volumes to attach to each job.
+                Defaults to an empty list.
+            env_vars: Non-sensitive runtime environment variables.
+                Defaults to an empty dict.
+            secrets: Secret environment variables passed securely to each job.
+                Defaults to an empty dict.
+            setup_commands: Shell commands run once when the cluster is first
+                provisioned.  ``None`` skips the setup step.
+
+        """
         self.resources: ResourcesConfig = OmegaConf.to_object(resources)  # ty:ignore[invalid-assignment]
         self.file_mounts: list[FileMount] = OmegaConf.to_object(file_mounts) or []  # ty:ignore[invalid-assignment]
         self.env_vars: dict[str, str] = OmegaConf.to_object(env_vars) or {}  # ty:ignore[invalid-assignment]
@@ -70,13 +94,35 @@ class SkyPilotLauncher(Launcher):
         task_function: TaskFunction,
         hydra_context: HydraContext,
     ) -> None:
-        """Set up the HPC Submission Launcher."""
+        """Bind the launcher to the current Hydra run context.
+
+        Called by Hydra before :meth:`launch`.  Stores the task function,
+        base config, and hydra context for use when constructing each job.
+
+        Args:
+            config: The base application config for this sweep.
+            task_function: The user's task function (used to derive the job
+                name via ``__name__``).
+            hydra_context: Hydra context providing access to the config
+                loader and other runtime utilities.
+
+        """
         self.task_function: TaskFunction = task_function
         self.config = config
         self.hydra_context = hydra_context
 
     def _get_job_name(self, initial_job_idx: int, idx: int) -> str:
-        """Get the job name based on the task function name and job index."""
+        """Build a unique job name from the task function name and job index.
+
+        Args:
+            initial_job_idx: Starting offset for job indices in this sweep
+                batch (provided by Hydra's sweeper).
+            idx: Position of the current job within the current batch.
+
+        Returns:
+            A string of the form ``"<task_name>_<global_idx>"``.
+
+        """
         try:
             job_name: str = (
                 f"{self.task_function.func.__name__}_{initial_job_idx + idx}"  # ty:ignore[unresolved-attribute]
@@ -86,7 +132,22 @@ class SkyPilotLauncher(Launcher):
         return job_name
 
     def _get_job_script(self, job_override: Sequence[str]) -> Path:
-        """Get the job script path."""
+        """Determine the Python script that the remote job should execute.
+
+        Defaults to ``sys.argv[0]`` (the script that launched the sweep).
+        If a ``+launch.script=<path>`` override is present it is used instead
+        and removed from ``job_override`` in-place.  When the resolved script
+        lives in a ``bin/`` directory (i.e. an installed console script) only
+        the bare name is kept so ``uv run`` can locate it by entry-point name.
+
+        Args:
+            job_override: Mutable sequence of Hydra override strings for this
+                job.  Any ``+launch.script`` entry is consumed here.
+
+        Returns:
+            Path to the script or entry-point that the remote job will run.
+
+        """
         job_script: Path = Path(sys.argv[0])
         if any("+launch.script=" in arg for arg in job_override):
             job_script = Path(
@@ -105,7 +166,25 @@ class SkyPilotLauncher(Launcher):
         return job_script
 
     def _format_overrides(self, job_override: Sequence[str]) -> list[str]:
-        """Format the overrides for command line usage."""
+        """Escape and reformat Hydra overrides for safe shell embedding.
+
+        Handles three categories of override:
+        - Plain overrides (no special characters) are passed through unchanged.
+        - Overrides containing backslashes, ``$``, or shell metacharacters
+          (``(``, ``)``, ``{``, ``}``) are shell-escaped so they survive
+          double-quoting inside the remote run command.
+        - Overrides prefixed with ``+launch.*`` are separated from the Hydra
+          overrides with a ``--`` sentinel and appended as positional arguments
+          passed to the launched script rather than to Hydra.
+
+        Args:
+            job_override: Sequence of raw Hydra override strings for this job.
+
+        Returns:
+            A list of formatted override strings, with an optional ``"--"``
+            separator followed by launch-command overrides at the end.
+
+        """
         # Reformat string overrides to handle spaces in the values
         overrides_list: list[str] = []
         launch_command_overrides: list[str] = []
@@ -150,7 +229,21 @@ class SkyPilotLauncher(Launcher):
         return overrides_list
 
     def _get_run_command(self, job_override: Sequence[str]) -> list[str]:
-        """Get the run command for the job."""
+        r"""Build the multi-line shell run command for the SkyPilot task.
+
+        Combines the resolved job script and formatted overrides into a
+        ``uv run <script> \\`` block where each override is indented on its
+        own line for readability in SkyPilot logs.
+
+        Args:
+            job_override: Sequence of raw Hydra override strings for this job.
+
+        Returns:
+            A list of shell command lines that together form the run command.
+            The first element is the ``uv run <script>`` invocation; subsequent
+            elements are the indented, escaped override arguments.
+
+        """
         job_script: Path = self._get_job_script(job_override)
         overrides_list: list[str] = self._format_overrides(job_override)
         overrides_list = [f"\t{override} \\" for override in overrides_list]
@@ -166,7 +259,27 @@ class SkyPilotLauncher(Launcher):
         job_overrides: Sequence[Sequence[str]],
         initial_job_idx: int = 0,
     ) -> Sequence[JobReturn]:
-        """Launch the jobs with the given overrides."""
+        """Submit each sweep job as a SkyPilot managed job and return results.
+
+        For every set of overrides in ``job_overrides`` this method:
+
+        1. Derives a unique job name and run command.
+        2. Constructs a :class:`~hydra_skypilot_launcher.config.config_types.TaskConfig`
+           from the launcher's shared config and the per-job run command.
+        3. Submits the task via ``sky.jobs.launch`` and records the request ID.
+        4. Resolves the Hydra output directory and writes all config YAML files.
+        5. Appends a ``JobReturn`` with status ``COMPLETED`` to the results.
+
+        Args:
+            job_overrides: Sequence of override lists, one per sweep job.
+            initial_job_idx: Starting index offset for job naming, provided
+                by Hydra's sweeper when batching jobs. Defaults to ``0``.
+
+        Returns:
+            A sequence of :class:`hydra.core.utils.JobReturn` objects, one per
+            submitted job, each with status ``COMPLETED``.
+
+        """
         results: list[JobReturn] = []
         for idx, job_override in enumerate(job_overrides):
             job_name: str = self._get_job_name(initial_job_idx, idx)

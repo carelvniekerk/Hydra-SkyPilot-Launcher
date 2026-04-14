@@ -1,8 +1,12 @@
-# Author: Carel van Niekerk
-# Year: 2025
-# Group: Dialogue Systems and Machine Learning Group
-# Institution: Heinrich Heine University Düsseldorf
+# coding=utf-8
 # --------------------------------------------------------------------------------
+# Project: Hydra SkyPilot Launcher
+# Author: Carel van Niekerk
+# Year: 2026
+# --------------------------------------------------------------------------------
+#
+# This code was generated with the help of AI writing assistants
+# including GitHub Copilot, ChatGPT Codex, Claude Code, Gemini.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +18,15 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License."
-"""Configuration output handler."""
+# limitations under the License.
+"""Output directory management and config persistence for sweep jobs.
+
+Resolves the per-job output directory from the Hydra sweep configuration,
+creates it on disk, and saves all relevant configs (``config.yaml``,
+``hydra.yaml``, ``overrides.yaml``, ``sky_job.yaml``) into the Hydra output
+subdirectory.  Secrets stored in the launcher config are redacted before
+writing.
+"""
 
 from pathlib import Path
 
@@ -32,14 +43,25 @@ def handle_output_dir_and_save_configs(
     job_dir_key: str = "hydra.sweep.dir",
     job_subdir_key: str = "hydra.sweep.subdir",
 ) -> None:
-    """Handle output directories and save configs.
+    """Resolve the job output directory and persist all sweep configs to disk.
+
+    Temporarily activates ``hydra_config`` as the live Hydra config so that
+    OmegaConf interpolations (e.g. ``${hydra.job.num}``) in the sweep dir
+    path resolve correctly.  After resolving, the output directory is created
+    and four YAML files are written into the Hydra output subdirectory:
+    ``config.yaml``, ``hydra.yaml``, ``overrides.yaml``, and
+    ``sky_job.yaml``.  Any secrets in the launcher config are replaced with
+    ``"<redacted>"`` before writing.
 
     Args:
-    ----
-        hydra_config (DictConfig): The hydra sweeper config
-        sky_config (DictConfig): The SkyPilot job config
-        job_dir_key (str): The key to the output directory
-        job_subdir_key (str): The key to the output subdirectory
+        hydra_config: The per-job Hydra sweep config containing sweep dir,
+            subdir, and launcher settings.
+        sky_config: The SkyPilot job YAML config produced from the task,
+            saved as ``sky_job.yaml`` for reference.
+        job_dir_key: OmegaConf dotpath to the sweep base directory within
+            ``hydra_config``. Defaults to ``"hydra.sweep.dir"``.
+        job_subdir_key: OmegaConf dotpath to the per-job subdirectory within
+            ``hydra_config``. Defaults to ``"hydra.sweep.subdir"``.
 
     """
     orig_hydra_cfg = HydraConfig.instance().cfg
