@@ -10,7 +10,7 @@ repos:
     # UV - Python dependency management tool
     - repo: https://github.com/astral-sh/uv-pre-commit
       # uv version.
-      rev: 0.11.6
+      rev: 0.11.7
       hooks:
           - id: uv-lock
 
