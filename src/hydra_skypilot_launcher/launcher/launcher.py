@@ -318,7 +318,6 @@ class SkyPilotLauncher(Launcher):
                 )
             )
             job_name: str = self._get_job_name(initial_job_idx, idx, sweep_config)
-            raise NameError(job_name)
             run_command: list[str] = self._get_run_command(job_override)
             work_dir: Path = Path.cwd()
 
