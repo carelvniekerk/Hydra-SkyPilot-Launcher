@@ -50,6 +50,8 @@ class SkyPilotLauncherConfig:
         secrets: Secret environment variables passed via SkyPilot's secrets
             mechanism and redacted from saved configs.
         setup_commands: Shell commands run once during cluster provisioning.
+        job_name_keys: List of config keys to use for naming jobs.  If empty,
+            jobs are named using the task function name and job index.
 
     """
 
@@ -59,3 +61,4 @@ class SkyPilotLauncherConfig:
     env_vars: dict[str, str] = field(default_factory=dict)
     secrets: dict[str, str] = field(default_factory=dict)
     setup_commands: list[str] | None = None
+    job_name_keys: list[str] = field(default_factory=list)

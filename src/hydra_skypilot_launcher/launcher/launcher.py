@@ -60,13 +60,14 @@ class SkyPilotLauncher(Launcher):
     cloud infrastructure with automatic provisioning and fault tolerance.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         resources: ResourcesConfig,
         file_mounts: list[FileMount] | None = None,
         env_vars: dict[str, str] | None = None,
         secrets: dict[str, str] | None = None,
         setup_commands: list[str] | None = None,
+        job_name_keys: list[str] | None = None,
     ) -> None:
         """Store launcher config, converting OmegaConf nodes to plain Python objects.
 
@@ -80,6 +81,9 @@ class SkyPilotLauncher(Launcher):
                 Defaults to an empty dict.
             setup_commands: Shell commands run once when the cluster is first
                 provisioned.  ``None`` skips the setup step.
+            job_name_keys: List of config keys to include in the job name.
+                Defaults to an empty list (only the task function name and
+                job index are used).
 
         """
         self.resources: ResourcesConfig = OmegaConf.to_object(resources)  # ty:ignore[invalid-assignment]
@@ -87,6 +91,7 @@ class SkyPilotLauncher(Launcher):
         self.env_vars: dict[str, str] = OmegaConf.to_object(env_vars) or {}  # ty:ignore[invalid-assignment]
         self.secrets: dict[str, str] = OmegaConf.to_object(secrets) or {}  # ty:ignore[invalid-assignment]
         self.setup_commands: list[str] | None = OmegaConf.to_object(setup_commands)  # ty:ignore[invalid-assignment]
+        self.job_name_keys: list[str] = OmegaConf.to_object(job_name_keys) or []  # ty:ignore[invalid-assignment]
 
     def setup(
         self,
@@ -111,25 +116,48 @@ class SkyPilotLauncher(Launcher):
         self.config = config
         self.hydra_context = hydra_context
 
-    def _get_job_name(self, initial_job_idx: int, idx: int) -> str:
-        """Build a unique job name from the task function name and job index.
+    def _get_job_name(self, initial_job_idx: int, idx: int, config: DictConfig) -> str:
+        """Build a unique job name for the SkyPilot managed job.
+
+        When ``job_name_keys`` is configured, the name is built by joining the
+        resolved config values at each key with underscores, followed by the
+        global job index — e.g. ``"grpo_Qwen2.5-7B_MultiArith_0"``.  Nested
+        keys (e.g. ``"trainer.name"``) are resolved via :func:`OmegaConf.select`.
+        Keys that are missing or ``None`` in the config are silently skipped.
+
+        When ``job_name_keys`` is empty the name falls back to the task
+        function name suffixed with the global index —
+        e.g. ``"<task_function_name>_<global_idx>"``.
 
         Args:
             initial_job_idx: Starting offset for job indices in this sweep
                 batch (provided by Hydra's sweeper).
             idx: Position of the current job within the current batch.
+            config: The fully resolved per-job sweep config, used to extract
+                values when ``job_name_keys`` is set.
 
         Returns:
-            A string of the form ``"<task_name>_<global_idx>"``.
+            A unique job name string of the form
+            ``"<key_values...>_<global_idx>"`` or
+            ``"<task_function_name>_<global_idx>"``.
 
         """
-        try:
-            job_name: str = (
-                f"{self.task_function.func.__name__}_{initial_job_idx + idx}"  # ty:ignore[unresolved-attribute]
-            )
-        except AttributeError:
-            job_name = f"{self.task_function.__name__}_{initial_job_idx + idx}"  # ty:ignore[unresolved-attribute]
-        return job_name
+        if not self.job_name_keys:
+            try:
+                job_name: str = (
+                    f"{self.task_function.func.__name__}_{initial_job_idx + idx}"  # ty:ignore[unresolved-attribute]
+                )
+            except AttributeError:
+                job_name = f"{self.task_function.__name__}_{initial_job_idx + idx}"  # ty:ignore[unresolved-attribute]
+            return job_name
+
+        job_name_values: list[str] = []
+        for key in self.job_name_keys:
+            value = OmegaConf.select(config, key)
+            if value is not None:
+                job_name_values.append(value)
+        job_name_values.append(str(initial_job_idx + idx))
+        return "_".join(job_name_values)
 
     def _get_job_script(self, job_override: Sequence[str]) -> Path:
         """Determine the Python script that the remote job should execute.
@@ -282,7 +310,15 @@ class SkyPilotLauncher(Launcher):
         """
         results: list[JobReturn] = []
         for idx, job_override in enumerate(job_overrides):
-            job_name: str = self._get_job_name(initial_job_idx, idx)
+            # Get the sweeper configuration
+            sweep_config: DictConfig = (
+                self.hydra_context.config_loader.load_sweep_config(
+                    self.config,
+                    list(job_override),
+                )
+            )
+            job_name: str = self._get_job_name(initial_job_idx, idx, sweep_config)
+            raise NameError(job_name)
             run_command: list[str] = self._get_run_command(job_override)
             work_dir: Path = Path.cwd()
 
@@ -306,11 +342,6 @@ class SkyPilotLauncher(Launcher):
             request_id = launch(skypilot_task)
             logger.info(f"Job '{job_name}' launched successfully.")  # noqa: G004
 
-            # Get the sweeper configuration
-            sweep_config = self.hydra_context.config_loader.load_sweep_config(
-                self.config,
-                list(job_override),
-            )
             with open_dict(sweep_config):
                 # Assign HPC job id to the sweep configuration
                 sweep_config.hydra.job.id = request_id
