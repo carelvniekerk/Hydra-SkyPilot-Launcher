@@ -157,7 +157,9 @@ class SkyPilotLauncher(Launcher):
             if value is not None:
                 job_name_values.append(value)
         job_name_values.append(str(initial_job_idx + idx))
-        return "_".join(job_name_values)
+        
+        job_name: str = "_".join(job_name_values)
+        return job_name.replace("/","_")
 
     def _get_job_script(self, job_override: Sequence[str]) -> Path:
         """Determine the Python script that the remote job should execute.
