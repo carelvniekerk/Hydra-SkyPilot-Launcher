@@ -37,7 +37,8 @@ from hydra.core.utils import HydraConfig, JobReturn, JobStatus
 from hydra.plugins.launcher import Launcher
 from hydra.types import HydraContext, TaskFunction
 from omegaconf import DictConfig, OmegaConf, open_dict
-from sky.jobs import launch
+from sky import launch as launch_direct_job
+from sky.jobs import launch as launch_managed_job
 
 from hydra_skypilot_launcher.config.config_types import (
     FileMount,
@@ -68,6 +69,8 @@ class SkyPilotLauncher(Launcher):
         secrets: dict[str, str] | None = None,
         setup_commands: list[str] | None = None,
         job_name_keys: list[str] | None = None,
+        *,
+        is_managed_job: bool = True,
     ) -> None:
         """Store launcher config, converting OmegaConf nodes to plain Python objects.
 
@@ -84,6 +87,9 @@ class SkyPilotLauncher(Launcher):
             job_name_keys: List of config keys to include in the job name.
                 Defaults to an empty list (only the task function name and
                 job index are used).
+            is_managed_job: If ``True``, the job is launched by a jobs controller
+                instance that handles retries and failure recovery; if ``False``, the
+                job is launched directly by the sweep launcher.  Defaults to ``True``.
 
         """
         self.resources: ResourcesConfig = OmegaConf.to_object(resources)  # ty:ignore[invalid-assignment]
@@ -92,6 +98,7 @@ class SkyPilotLauncher(Launcher):
         self.secrets: dict[str, str] = OmegaConf.to_object(secrets) or {}  # ty:ignore[invalid-assignment]
         self.setup_commands: list[str] | None = OmegaConf.to_object(setup_commands)  # ty:ignore[invalid-assignment]
         self.job_name_keys: list[str] = OmegaConf.to_object(job_name_keys) or []  # ty:ignore[invalid-assignment]
+        self.is_managed_job: bool = OmegaConf.to_object(is_managed_job)  # ty:ignore[invalid-assignment]
 
     def setup(
         self,
@@ -157,9 +164,9 @@ class SkyPilotLauncher(Launcher):
             if value is not None:
                 job_name_values.append(value)
         job_name_values.append(str(initial_job_idx + idx))
-        
+
         job_name: str = "_".join(job_name_values)
-        return job_name.replace("/","_")
+        return job_name.replace("/", "_")
 
     def _get_job_script(self, job_override: Sequence[str]) -> Path:
         """Determine the Python script that the remote job should execute.
@@ -340,7 +347,14 @@ class SkyPilotLauncher(Launcher):
             # Launch the job using SkyPilot
             logger.info(f"Launching job '{job_name}' with SkyPilot...")  # noqa: G004
             logger.info(f"Run command: {' '.join(run_command)}")  # noqa: G004
-            request_id = launch(skypilot_task)
+            if self.is_managed_job:
+                request_id = launch_managed_job(skypilot_task)
+            else:
+                request_id = launch_direct_job(
+                    task=skypilot_task,
+                    cluster_name=job_name,
+                    down=True,
+                )
             logger.info(f"Job '{job_name}' launched successfully.")  # noqa: G004
 
             with open_dict(sweep_config):

@@ -52,6 +52,9 @@ class SkyPilotLauncherConfig:
         setup_commands: Shell commands run once during cluster provisioning.
         job_name_keys: List of config keys to use for naming jobs.  If empty,
             jobs are named using the task function name and job index.
+        is_managed_job: If ``True``, the job is launched by a jobs controller
+            instance that handles retries and failure recovery; if ``False``, the job
+            is launched directly by the sweep launcher.  Defaults to ``True``.
 
     """
 
@@ -62,3 +65,4 @@ class SkyPilotLauncherConfig:
     secrets: dict[str, str] = field(default_factory=dict)
     setup_commands: list[str] | None = None
     job_name_keys: list[str] = field(default_factory=list)
+    is_managed_job: bool = field(default=True, kw_only=True)
