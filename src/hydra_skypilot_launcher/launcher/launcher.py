@@ -98,7 +98,7 @@ class SkyPilotLauncher(Launcher):
         self.secrets: dict[str, str] = OmegaConf.to_object(secrets) or {}  # ty:ignore[invalid-assignment]
         self.setup_commands: list[str] | None = OmegaConf.to_object(setup_commands)  # ty:ignore[invalid-assignment]
         self.job_name_keys: list[str] = OmegaConf.to_object(job_name_keys) or []  # ty:ignore[invalid-assignment]
-        self.is_managed_job: bool = OmegaConf.to_object(is_managed_job)  # ty:ignore[invalid-assignment]
+        self.is_managed_job: bool = is_managed_job
 
     def setup(
         self,
