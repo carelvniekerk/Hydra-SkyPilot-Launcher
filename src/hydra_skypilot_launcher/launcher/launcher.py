@@ -19,13 +19,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""SkyPilotLauncher — Hydra launcher plugin backed by SkyPilot managed jobs.
+"""SkyPilotLauncher — Hydra launcher plugin backed by SkyPilot.
 
 Each call to :meth:`SkyPilotLauncher.launch` iterates over the provided
 Hydra sweep overrides, constructs a SkyPilot ``Task`` from the launcher
-config, submits it via ``sky.jobs.launch``, and records a ``JobReturn``
-for Hydra's sweeper bookkeeping.  The per-job output directory and all
-relevant config YAML files are written to disk before the function returns.
+config, and submits it via either ``sky.jobs.launch`` (managed job with
+automatic retries and fault recovery, the default) or ``sky.launch``
+(direct cluster launch that tears down on completion), depending on
+``is_managed_job``.  A ``JobReturn`` is recorded for Hydra's sweeper
+bookkeeping and the per-job output directory and config YAML files are
+written to disk before the function returns.
 """
 
 import sys
