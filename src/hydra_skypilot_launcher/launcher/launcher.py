@@ -215,7 +215,11 @@ class SkyPilotLauncher(Launcher):
           double-quoting inside the remote run command.
         - Overrides prefixed with ``+launch.*`` are separated from the Hydra
           overrides with a ``--`` sentinel and appended as positional arguments
-          passed to the launched script rather than to Hydra.
+          passed to the launched script rather than to Hydra. Within a launch
+          override key, the literal ``PLUS_`` is rewritten to ``+`` so callers
+          can express Hydra's add-key sigil (``+foo=bar``) on the launched
+          script — the bare ``+`` cannot be used here because Hydra's CLI
+          parser would consume it before the launcher sees the override.
 
         Args:
             job_override: Sequence of raw Hydra override strings for this job.
