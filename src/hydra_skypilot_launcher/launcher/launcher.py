@@ -257,6 +257,7 @@ class SkyPilotLauncher(Launcher):
                     "+launch/",
                     "",
                 )
+                override_key = override_key.replace("PLUS_", "+")
                 launch_command_overrides.append(
                     f'{override_key}=\\"{override_value}\\"',
                 )
