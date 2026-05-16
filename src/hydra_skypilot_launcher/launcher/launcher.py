@@ -74,6 +74,7 @@ class SkyPilotLauncher(Launcher):
         job_name_keys: list[str] | None = None,
         *,
         is_managed_job: bool = True,
+        retry_until_up: bool = True,
     ) -> None:
         """Store launcher config, converting OmegaConf nodes to plain Python objects.
 
@@ -93,6 +94,9 @@ class SkyPilotLauncher(Launcher):
             is_managed_job: If ``True``, the job is launched by a jobs controller
                 instance that handles retries and failure recovery; if ``False``, the
                 job is launched directly by the sweep launcher.  Defaults to ``True``.
+            retry_until_up: If ``True``, the launcher will retry failed job launches
+                indefinitely until they succeed.  Only applicable when
+                ``is_managed_job=False``.  Defaults to ``True``.
 
         """
         self.resources: ResourcesConfig = OmegaConf.to_object(resources)  # ty:ignore[invalid-assignment]
@@ -102,6 +106,7 @@ class SkyPilotLauncher(Launcher):
         self.setup_commands: list[str] | None = OmegaConf.to_object(setup_commands)  # ty:ignore[invalid-assignment]
         self.job_name_keys: list[str] = OmegaConf.to_object(job_name_keys) or []  # ty:ignore[invalid-assignment]
         self.is_managed_job: bool = is_managed_job
+        self.retry_until_up: bool = retry_until_up
 
     def setup(
         self,
@@ -362,6 +367,7 @@ class SkyPilotLauncher(Launcher):
                     task=skypilot_task,
                     cluster_name=job_name,
                     down=True,
+                    retry_until_up=self.retry_until_up,
                 )
             logger.info(f"Job '{job_name}' launched successfully.")  # noqa: G004
 

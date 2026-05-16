@@ -66,3 +66,4 @@ class SkyPilotLauncherConfig:
     setup_commands: list[str] | None = None
     job_name_keys: list[str] = field(default_factory=list)
     is_managed_job: bool = field(default=True, kw_only=True)
+    retry_until_up: bool = field(default=True, kw_only=True)
