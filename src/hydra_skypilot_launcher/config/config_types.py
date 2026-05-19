@@ -95,7 +95,7 @@ class ResourcesConfig:
         memory: Minimum RAM in GiB (int) or a range/suffix string such as
             ``"16+"`` or ``"16-32"``. ``None`` lets SkyPilot decide.
         accelerators: GPU/TPU specification, e.g. ``"A100:1"`` or
-            ``"T4:4"``. ``None`` requests CPU-only resources.
+            ``"T4:4"`` or ``{"H100": 1}``. ``None`` requests CPU-only resources.
         disk_size: Root disk size in GiB. ``None`` uses the cloud default.
         use_spot: If ``True``, request preemptible/spot instances to reduce
             cost. Defaults to ``False``.
@@ -105,7 +105,7 @@ class ResourcesConfig:
     infrastructure: str
     cpus: int | str | None = None
     memory: int | str | None = None
-    accelerators: str | None = None
+    accelerators: str | dict[str, int] | None = None
     disk_size: int | str | None = None
     use_spot: bool = False
 
@@ -120,7 +120,7 @@ class ResourcesConfig:
             infra=self.infrastructure,
             cpus=self.cpus,
             memory=self.memory,
-            accelerators=self.accelerators,
+            accelerators=self.accelerators,  # ty:ignore[invalid-argument-type]
             disk_size=self.disk_size,
             use_spot=self.use_spot,
         )
